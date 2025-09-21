@@ -3,10 +3,6 @@
 A Model Context Protocol (MCP) server that provides access to linter diagnostics
 from a workspace via Neovim's LSP.
 
-## Features
-
-- **Read Lints**: Read diagnostics from Neovim LSP and return them to the client
-
 ## Tools
 
 ### `read-lints`
