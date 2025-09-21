@@ -78,6 +78,7 @@ func discoverSocketCandidates() []string {
 // DiscoverAndConnectByCwd tries all discovered sockets and returns the client whose cwd matches workspace.
 func DiscoverAndConnectByCwd(ctx context.Context, workspace string) (*Client, error) {
 	for _, addr := range discoverSocketCandidates() {
+		logger.Infof("nvim discovery: trying %s", addr)
 		n, err := nv.Dial(addr)
 		if err != nil {
 			logger.Warnf("nvim discovery: dial failed for %s: %v", addr, err)

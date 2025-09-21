@@ -3,8 +3,6 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -28,15 +26,15 @@ func ReadLintsHandler() func(context.Context, mcp.CallToolRequest) (*mcp.CallToo
 			// Fallback: try to marshal then unmarshal if it's a map[string]any
 			b, merr := json.Marshal(req.Params.Arguments)
 			if merr != nil {
-				return nil, fmt.Errorf("invalid parameters: %v", merr)
+				return mcp.NewToolResultErrorFromErr("invalid parameters", merr), nil
 			}
 			raw = b
 		}
 		if err := json.Unmarshal(raw, &args); err != nil {
-			return nil, fmt.Errorf("invalid parameters: %w", err)
+			return mcp.NewToolResultErrorFromErr("invalid parameters", err), nil
 		}
 		if strings.TrimSpace(args.Workspace) == "" {
-			return nil, errors.New("workspace is required")
+			return mcp.NewToolResultError("workspace is required"), nil
 		}
 
 		cli, err := nvim.ConnectFromEnv(ctx)
@@ -44,7 +42,7 @@ func ReadLintsHandler() func(context.Context, mcp.CallToolRequest) (*mcp.CallToo
 			// Fallback to auto-discovery: find a Neovim whose cwd matches workspace
 			cli, err = nvim.DiscoverAndConnectByCwd(ctx, args.Workspace)
 			if err != nil {
-				return nil, fmt.Errorf("failed to attach to Neovim: %w", err)
+				return mcp.NewToolResultErrorFromErr("failed to attach to Neovim", err), nil
 			}
 		}
 		defer cli.Close()
@@ -52,15 +50,15 @@ func ReadLintsHandler() func(context.Context, mcp.CallToolRequest) (*mcp.CallToo
 		// Validate that the Neovim session cwd matches the requested workspace
 		cwd, err := nvim.GetCwd(ctx, cli)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read Neovim cwd: %w", err)
+			return mcp.NewToolResultErrorFromErr("failed to read Neovim cwd", err), nil
 		}
 		if cwd != args.Workspace {
-			return nil, fmt.Errorf("nvim cwd mismatch: expected %s, got %s", args.Workspace, cwd)
+			return mcp.NewToolResultErrorf("nvim cwd mismatch: expected %s, got %s", args.Workspace, cwd), nil
 		}
 
 		out, err := nvim.CollectDiagnosticsJSON(ctx, cli)
 		if err != nil {
-			return nil, fmt.Errorf("failed to collect diagnostics: %w", err)
+			return mcp.NewToolResultErrorFromErr("failed to collect diagnostics", err), nil
 		}
 		if out == "" {
 			logger.Warnf("no diagnostics returned from Neovim")
