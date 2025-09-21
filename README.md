@@ -79,6 +79,34 @@ For other MCP clients, configure the server with:
 - **Args**: Empty array `[]`
 - **Transport**: STDIO
 
+## Custom Cursor Rules
+
+You can create custom rules in Cursor to make the agent proactively use the
+`read-lints` tool. Create a `.cursor/rules/lint.mdc` file in your project root
+with rules like this:
+
+```markdown
+---
+description: Lint workspace files
+globs:
+alwaysApply: true
+---
+
+- IMPORTANT: After creating or editing ANY file, run the read-lints tool to
+  check for workspace lint errors and address them proactively.
+- If lint warnings/errors appear from files you did not create/edit, ask the
+  user if they want you to fix those files at the end of the tasks you were
+  given.
+- If you fixed a lint error and recheck with the read-lints tool and get the
+  same error, tell the user to reload the file in their nvim client.
+- When the user asks to run lint checks or run lint tool, do not use the
+  read-lints tool. However if the user asks to fix the lint errors, or fix the
+  lint errors in a file, then use the read-lints tool.
+```
+
+This rule ensures the agent automatically checks for lint errors after making
+changes and proactively addresses them.
+
 ## Configuration
 
 - Set log path with `NVIM_LSP_MCP_LOG` (defaults near the executable)

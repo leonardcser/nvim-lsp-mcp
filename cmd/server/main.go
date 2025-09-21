@@ -31,13 +31,19 @@ func main() {
 		mcp.WithDescription(multiline(
 			"Reads linter diagnostics from the current workspace via Neovim LSP",
 			"\nFunctionality:",
-			"- Uses Neovim RPC to query LSP diagnostics",
-			"- Returns diagnostics grouped by file",
+			"- Uses Neovim to query LSP diagnostics",
+			"- Returns diagnostics",
+			"\nUsage notes:",
+			"- IMPORTANT: ALWAYS run this tool immediately after creating or editing ANY file, without exception. This is mandatory for all file operations.",
+			"- This tool checks for workspace lint warnings/errors and allows you to address them proactively.",
+			"- If lint warnings/errors appear from files you did not create/edit, ask the user if they want you to fix those files at the end of the tasks you were given.",
+			"- If you fixed a lint error and recheck with the read-lints tool and get the same error, tell the user to reload the file in their nvim client.",
+			"- When the user asks to run lint checks or run lint tool, do not use this tool. However if the user asks to fix the lint errors, or fix the lint errors in a file, then use this tool.",
 		)),
 		// Structured input schema using Go struct (see mcp-go docs): https://mcp-go.dev/servers/tools
 		mcp.WithInputSchema[tools.ReadLintsArgs](),
 	)
-	s.AddTool(toolReadLints, tools.ReadLintsHandler())
+	s.AddTool(toolReadLints, mcp.NewStructuredToolHandler(tools.ReadLintsHandler))
 	logger.Infof("Registered read-lints tool")
 
 	logger.Infof("Starting MCP server on stdio")
