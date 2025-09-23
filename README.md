@@ -78,18 +78,15 @@ For other MCP clients, configure the server with:
 ## Custom Cursor Rules
 
 You can create custom rules in Cursor to make the agent proactively use the
-`read-lints` tool. Create a `.cursor/rules/lint.mdc` file in your project root
-with rules like this:
+`read-lints` tool. Create a `AGENTS.md` file in your project root or config with
+a rule like this:
 
 ```markdown
----
-description: Lint workspace files
-globs:
-alwaysApply: true
----
+# Lint Rule
 
 - IMPORTANT: After creating or editing ANY file, run the read-lints tool to
-  check for workspace lint errors and address them proactively.
+  check for lint errors passing the files you created/edited and address them
+  proactively.
 - If lint warnings/errors appear from files you did not create/edit, ask the
   user if they want you to fix those files at the end of the tasks you were
   given.

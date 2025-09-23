@@ -2,10 +2,9 @@ package nvim
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
-	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -18,6 +17,18 @@ const (
 	// If the number of files exceeds this limit, reloading is disabled
 	MaxFilesToReload = 100
 )
+
+type luaFilterResult struct {
+	Filtered      []string `json:"filtered"`
+	OrigCount     int      `json:"origCount"`
+	FilteredCount int      `json:"filteredCount"`
+}
+
+//go:embed lua/filter_changed_files.lua
+var filterLua string
+
+//go:embed lua/refresh_diagnostics.lua
+var refreshLua string
 
 // fetchBufferDiagnostics tries to fetch diagnostics for a given buffer.
 // It first asks Lua for the count, then attempts to decode the table directly.
@@ -40,67 +51,48 @@ func fetchBufferDiagnostics(c *Client, bufnr int) ([]map[string]any, error) {
 }
 
 // refreshWorkspaceDiagnostics forces a refresh of workspace diagnostics for specific files
-func refreshWorkspaceDiagnostics(c *Client, files []string, workspace string) error {
+func refreshWorkspaceDiagnostics(c *Client, files []string, workspace string, maxFiles int) error {
 	var filesToProcess []string
 
-	if len(files) == 0 {
-		// If no files specified, use git diff to get changed files (staged and unstaged)
-		cmd := exec.Command("git", "diff", "--name-only", "HEAD")
-		cmd.Dir = workspace
-		output, err := cmd.Output()
-		if err != nil {
-			return fmt.Errorf("failed to run git diff --name-only: %w", err)
-		}
-
-		gitFiles := strings.SplitSeq(strings.TrimSpace(string(output)), "\n")
-		for file := range gitFiles {
-			if file != "" {
-				fullPath := filepath.Join(workspace, file)
-				filesToProcess = append(filesToProcess, fullPath)
-			}
+	if len(files) > 0 {
+		filesToProcess = files
+		if len(filesToProcess) > maxFiles {
+			filesToProcess = filesToProcess[:maxFiles]
+			logger.Warnf("nvim: capped user-specified files to %d", maxFiles)
 		}
 	} else {
-		filesToProcess = files
+		// Lua-based filtering for changed files
+		luaCode := filterLua
+		var jsonStr string
+		err := c.NV.ExecLua(luaCode, &jsonStr, workspace, maxFiles)
+		if err != nil {
+			logger.Errorf("nvim: Lua filtering failed: %v, skipping refresh", err)
+			return nil
+		}
+		if jsonStr == "" || jsonStr == "null" {
+			logger.Errorf("nvim: Lua filtering returned empty result, skipping refresh")
+			return nil
+		}
+		var result luaFilterResult
+		if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+			logger.Errorf("nvim: Invalid JSON from Lua filtering: %v, skipping refresh", err)
+			return nil
+		}
+		filesToProcess = result.Filtered
+		logger.Infof("nvim: Lua filtered %d changed files to %d relevant (max %d)", result.OrigCount, result.FilteredCount, maxFiles)
+		if len(filesToProcess) > maxFiles {
+			filesToProcess = filesToProcess[:maxFiles]
+			logger.Warnf("nvim: Capped post-Lua files to %d", maxFiles)
+		}
 	}
 
-	// Check if we have too many files to reload
-	if len(filesToProcess) > MaxFilesToReload {
-		logger.Warnf("nvim: too many files to reload (%d > %d), skipping reload", len(filesToProcess), MaxFilesToReload)
+	if len(filesToProcess) == 0 {
 		return nil
 	}
 
 	// Refresh diagnostics for files by sending textDocument/didSave notifications
 	// Use ExecLua with args to properly pass the file list to Lua
-	code := `
-		local files = ...
-		for _, filepath in ipairs(files) do
-			local bufnr = vim.fn.bufnr(filepath, true)
-
-			if not vim.api.nvim_buf_is_loaded(bufnr) then
-				-- Use nvim_buf_call to safely load the buffer
-				vim.api.nvim_buf_call(bufnr, function()
-					vim.cmd("silent! edit")
-				end)
-			else
-				-- Buffer is already loaded, refresh it from disk
-				vim.api.nvim_buf_call(bufnr, function()
-					vim.cmd("silent! checktime")
-				end)
-			end
-
-			-- Small delay to ensure the buffer is fully loaded/refreshed
-			vim.schedule(function()
-				-- Send LSP notifications after buffer is reloaded
-				for _, client in ipairs(vim.lsp.get_clients({ bufnr = bufnr })) do
-					if client:supports_method("textDocument/didSave") then
-						client:notify("textDocument/didSave", {
-							textDocument = { uri = vim.uri_from_fname(filepath) },
-						})
-					end
-				end
-			end)
-		end
-	`
+	code := refreshLua
 
 	return c.NV.ExecLua(code, nil, filesToProcess)
 }
@@ -138,7 +130,7 @@ func CollectDiagnostics(ctx context.Context, c *Client, files []string) (string,
 	} else {
 		logger.Infof("nvim: refreshing workspace diagnostics for %d files", len(files))
 	}
-	if err := refreshWorkspaceDiagnostics(c, files, workspace); err != nil {
+	if err := refreshWorkspaceDiagnostics(c, files, workspace, MaxFilesToReload); err != nil {
 		logger.Warnf("nvim: failed to refresh workspace diagnostics: %v", err)
 		// Continue anyway - diagnostics might still be available
 	}

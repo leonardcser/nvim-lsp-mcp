@@ -34,7 +34,7 @@ func main() {
 			"- Uses Neovim to query LSP diagnostics",
 			"- Returns diagnostics",
 			"\nUsage notes:",
-			"- IMPORTANT: ALWAYS run this tool immediately after creating or editing ANY file, without exception. This is mandatory for all file operations.",
+			"- IMPORTANT: ALWAYS run this tool immediately after creating or editing ANY file, without exception, passing the files you created/edited. This is mandatory for all file operations.",
 			"- This tool checks for workspace lint warnings/errors and allows you to address them proactively.",
 			"- If lint warnings/errors appear from files you did not create/edit, ask the user if they want you to fix those files at the end of the tasks you were given.",
 			"- If you fixed a lint error and recheck with the read-lints tool and get the same error, tell the user to reload the file in their nvim client.",
