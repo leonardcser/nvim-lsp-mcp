@@ -106,7 +106,7 @@ func refreshWorkspaceDiagnostics(c *Client, files []string, workspace string) er
 }
 
 // CollectDiagnosticsJSON collects diagnostics for all listed buffers as JSON, using the injected Lua function.
-func CollectDiagnosticsJSON(ctx context.Context, c *Client, files []string) (string, error) {
+func CollectDiagnostics(ctx context.Context, c *Client, files []string) (string, error) {
 	// Minimal context
 	if cwd, err := GetCwd(ctx, c); err == nil {
 		logger.Infof("nvim: cwd=%s", cwd)
@@ -157,11 +157,7 @@ func CollectDiagnosticsJSON(ctx context.Context, c *Client, files []string) (str
 		logger.Warnf("nvim: no buffers returned by nvim_list_bufs")
 	}
 
-	type fileDiags struct {
-		File        string           `json:"file"`
-		Diagnostics []map[string]any `json:"diagnostics"`
-	}
-	results := make([]fileDiags, 0, len(bufs))
+	var lines []string
 
 	for _, bnr := range bufs {
 		var valid bool
@@ -198,13 +194,61 @@ func CollectDiagnosticsJSON(ctx context.Context, c *Client, files []string) (str
 		if len(items) == 0 {
 			continue
 		}
-		results = append(results, fileDiags{File: name, Diagnostics: items})
+		for _, item := range items {
+			severityRaw, ok := item["severity"].(float64)
+			if !ok {
+				continue
+			}
+			severityInt := int(severityRaw)
+			var severityStr string
+			switch severityInt {
+			case 1:
+				severityStr = "error"
+			case 2:
+				severityStr = "warning"
+			case 3:
+				severityStr = "info"
+			case 4:
+				severityStr = "hint"
+			default:
+				severityStr = "unknown"
+			}
+
+			lnumRaw, ok := item["lnum"].(float64)
+			if !ok {
+				continue
+			}
+			line := int(lnumRaw) + 1
+
+			colRaw, ok := item["col"].(float64)
+			col := 1
+			if ok {
+				col = int(colRaw) + 1
+			}
+
+			msg, ok := item["message"].(string)
+			if !ok || msg == "" {
+				continue
+			}
+
+			source, _ := item["source"].(string)
+			codeRaw := item["code"]
+			var codeStr string
+			if codeRaw != nil {
+				codeStr = fmt.Sprintf("%v", codeRaw)
+			}
+
+			formatted := fmt.Sprintf("%s:%d:%d: %s: %s", name, line, col, strings.ToUpper(severityStr), msg)
+			if source != "" {
+				formatted += fmt.Sprintf(" (%s)", source)
+			}
+			if codeStr != "" {
+				formatted += fmt.Sprintf(" [%s]", codeStr)
+			}
+			lines = append(lines, formatted)
+		}
 	}
 
-	b, err := json.Marshal(results)
-	if err != nil {
-		return "", err
-	}
-	logger.Infof("nvim: files_with_diagnostics=%d", len(results))
-	return string(b), nil
+	logger.Infof("nvim: diagnostics_total=%d", len(lines))
+	return strings.Join(lines, "\n"), nil
 }

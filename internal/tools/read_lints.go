@@ -43,14 +43,14 @@ func ReadLintsHandler(ctx context.Context, req mcp.CallToolRequest, args ReadLin
 		return mcp.NewToolResultErrorf("nvim cwd mismatch: expected %s, got %s", args.Workspace, cwd), nil
 	}
 
-	jsonOutput, err := nvim.CollectDiagnosticsJSON(ctx, cli, args.Files)
+	output, err := nvim.CollectDiagnostics(ctx, cli, args.Files)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to collect diagnostics", err), nil
 	}
-	if jsonOutput == "" {
+	if output == "" {
 		logger.Warnf("no diagnostics returned from Neovim")
 		return mcp.NewToolResultText(""), nil
 	}
 
-	return mcp.NewToolResultText(jsonOutput), nil
+	return mcp.NewToolResultText(output), nil
 }
