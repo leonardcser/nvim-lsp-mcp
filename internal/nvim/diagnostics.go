@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -179,6 +180,13 @@ func CollectDiagnosticsJSON(ctx context.Context, c *Client, files []string) (str
 		if name == "" {
 			// Skip unnamed buffers
 			continue
+		}
+
+		// If specific files were requested, only include diagnostics for those files
+		if len(files) > 0 {
+			if !slices.Contains(files, name) {
+				continue
+			}
 		}
 
 		// Fetch diagnostics directly from vim.diagnostic.get
