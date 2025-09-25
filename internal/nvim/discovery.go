@@ -3,9 +3,11 @@ package nvim
 import (
 	"context"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	nv "github.com/neovim/go-client/nvim"
 
@@ -79,13 +81,22 @@ func discoverSocketCandidates() []string {
 func DiscoverAndConnectByCwd(ctx context.Context, workspace string) (*Client, error) {
 	for _, addr := range discoverSocketCandidates() {
 		logger.Infof("nvim discovery: trying %s", addr)
+		conn, err := net.DialTimeout("unix", addr, 1*time.Second)
+		if err != nil {
+			logger.Warnf("nvim discovery: dial timeout or failed for %s: %v", addr, err)
+			continue
+		}
+		conn.Close()
+
 		n, err := nv.Dial(addr)
 		if err != nil {
-			logger.Warnf("nvim discovery: dial failed for %s: %v", addr, err)
+			logger.Warnf("nvim discovery: full dial failed for %s: %v", addr, err)
 			continue
 		}
 		cli := &Client{NV: n}
-		cwd, err := GetCwd(ctx, cli)
+		getcwdCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		defer cancel()
+		cwd, err := GetCwd(getcwdCtx, cli)
 		if err != nil {
 			logger.Warnf("nvim discovery: failed to getcwd for %s: %v", addr, err)
 			_ = n.Close()

@@ -19,7 +19,12 @@ type ReadLintsArgs struct {
 
 // ReadLintsHandler returns the MCP tool handler for the "read-lints" tool.
 // This uses the recommended structured handler pattern from mcp-go.
-func ReadLintsHandler(ctx context.Context, req mcp.CallToolRequest, args ReadLintsArgs) (*mcp.CallToolResult, error) {
+func ReadLintsHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var args ReadLintsArgs
+	if err := req.BindArguments(&args); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
 	if strings.TrimSpace(args.Workspace) == "" {
 		return mcp.NewToolResultError("workspace is required"), nil
 	}

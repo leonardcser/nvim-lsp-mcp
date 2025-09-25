@@ -43,7 +43,7 @@ func main() {
 		// Structured input schema using Go struct (see mcp-go docs): https://mcp-go.dev/servers/tools
 		mcp.WithInputSchema[tools.ReadLintsArgs](),
 	)
-	s.AddTool(toolReadLints, mcp.NewStructuredToolHandler(tools.ReadLintsHandler))
+	s.AddTool(toolReadLints, tools.ReadLintsHandler)
 	logger.Infof("Registered read-lints tool")
 
 	logger.Infof("Starting MCP server on stdio")
